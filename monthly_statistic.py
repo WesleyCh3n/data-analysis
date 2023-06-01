@@ -46,39 +46,10 @@ df = (
     .agg(pl.col("unit cost").mean())
     .sort(["ProductCode", "EntityCode", "month"])
     .groupby(["ProductCode", "EntityCode"], maintain_order=True)
-    .agg([pl.col("month"), pl.col("unit cost")])  # agg 2 col to a list
-    .with_columns(
-        # create boolean mask list of each month
-        [
-            pl.col("month")
-            .list.eval((pl.element() == m), parallel=True)
-            .alias(f"{m}_idx")
-            for m in range(1, 13)
-        ]
-        # ┌───────┬─────────────┬───────┬────────────────────────┐
-        # │       ┆ month       ┆       ┆ 1_idx                  │
-        # │ ..... ┆ ---         ┆ ..... ┆ ---                    │
-        # │       ┆ list[i64]   ┆       ┆ list[bool]             │
-        # ╞═══════╪═════════════╪═══════╪════════════════════════╡
-        # │       ┆ [5]         ┆       ┆ [false]                │
-        # │       ┆ [1, 2, … 9] ┆       ┆ [true, false, … false] │
-        # │       ┆ [1, 2, … 9] ┆       ┆ [true, false, … false] │
-        # │       ┆ [1, 5]      ┆       ┆ [true, false]          │
-        # │ ..... ┆ …           ┆ ..... ┆ …                      │
-        # │       ┆ [9]         ┆       ┆ [false]                │
-        # │       ┆ [9]         ┆       ┆ [false]                │
-        # │       ┆ [9]         ┆       ┆ [false]                │
-        # │       ┆ [9]         ┆       ┆ [false]                │
-        # └───────┴─────────────┴───────┴────────────────────────┘
-    )
-    # explode list to each row
-    .explode(["unit cost"] + [f"{m}_idx" for m in range(1, 13)])
-    .groupby(["ProductCode", "EntityCode"], maintain_order=True)
-    # agg back to unique ProductCode + Entity
     .agg(
         [
             # agg get month unit cost by index
-            pl.col("unit cost").filter(pl.col(f"{m}_idx")).alias(f"{m}")
+            pl.col("unit cost").filter(pl.col("month") == m).alias(f"{m}")
             for m in range(1, 13)
         ]
     )
@@ -123,4 +94,5 @@ df = pl.concat(
 )
 
 print(df)
+df.write_csv("p.csv")
 df.drop([f"{m}" for m in range(1, 13)]).write_csv("p.csv")
